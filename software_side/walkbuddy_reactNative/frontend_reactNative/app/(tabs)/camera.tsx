@@ -25,6 +25,7 @@ import {
 
 import { getTTSService, RiskLevel, riskLevelFromString } from "../../src/services/TTSService";
 import { getSTTService } from "../../src/services/STTService";
+import { matchVoiceCommand, VOICE_COMMAND_HELP } from "../../src/services/VoiceCommandService";
 import { API_BASE, API_KEY } from "../../src/config";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Radius, Spacing, Typography } from "@/constants/theme";
@@ -594,6 +595,98 @@ export default function CameraAssistScreen() {
     if (!q) return;
     setIsVoiceProcessing(true);
     try {
+      const command = matchVoiceCommand(q);
+
+      if (command) {
+        const speakAndNavigate = async (message: string, pathname: string) => {
+          await tts.speak(message, RiskLevel.LOW, true);
+          router.push(pathname as any);
+        };
+
+        switch (command) {
+          case "help":
+            await tts.speak(VOICE_COMMAND_HELP, RiskLevel.LOW, true);
+            return;
+
+          case "repeat-guidance": {
+            const previousMessage = tts.getStatus().lastMessage;
+            await tts.speak(
+              previousMessage || "There is no previous guidance to repeat.",
+              RiskLevel.LOW,
+              true,
+            );
+            return;
+          }
+
+          case "read-text":
+            await tts.speak("Reading text.", RiskLevel.LOW, true);
+            await captureOCR();
+            return;
+
+          case "describe-surroundings": {
+            const descriptions = [
+              ...new Set(
+                detectionsRef.current
+                  .filter((d) => d.confidence >= 0.45)
+                  .map((d) => `${d.category}${d.direction ? ` ${d.direction}` : ""}`),
+              ),
+            ].slice(0, 5);
+            const description = descriptions.length
+              ? `I can see ${descriptions.join(", ")}.`
+              : "I cannot see any objects clearly right now.";
+            await tts.speak(description, RiskLevel.LOW, true);
+            return;
+          }
+
+          case "stop-speaking":
+            tts.stop();
+            return;
+
+          case "go-home":
+            await tts.speak("Going home.", RiskLevel.LOW, true);
+            router.replace("/" as any);
+            return;
+
+          case "go-back":
+            await tts.speak("Going back.", RiskLevel.LOW, true);
+            router.back();
+            return;
+
+          case "open-places":
+            await speakAndNavigate("Opening places.", "/places");
+            return;
+
+          case "open-audiobooks":
+            await speakAndNavigate("Opening audiobooks.", "/audiobooks");
+            return;
+
+          case "open-favourites":
+            await speakAndNavigate("Opening favourites.", "/favourites");
+            return;
+
+          case "open-indoor-navigation":
+            await speakAndNavigate("Opening indoor navigation.", "/indoor");
+            return;
+
+          case "open-outdoor-navigation":
+            await speakAndNavigate("Opening outdoor navigation.", "/exterior");
+            return;
+
+          case "open-predictive-path":
+            await speakAndNavigate("Opening predictive path.", "/predictive-path");
+            return;
+
+          case "open-ask-a-friend":
+            await speakAndNavigate("Opening Ask a Friend.", "/ask-a-friend-web");
+            return;
+
+          case "open-emergency":
+            await tts.speak("Opening the emergency screen.", RiskLevel.HIGH, true);
+            router.push("/emergency" as any);
+            return;
+        }
+      }
+
       const visionEvents = detectionsRef.current.map((d) => ({
         label: d.category,
         direction: d.direction || "ahead",
@@ -617,7 +710,7 @@ export default function CameraAssistScreen() {
     } finally {
       setIsVoiceProcessing(false);
     }
-  }, [tts]);
+  }, [captureOCR, router, tts]);
 
   const startListening = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
