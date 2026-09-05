@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Radius, Spacing, Typography } from "@/constants/theme";
 import { useThemeColors } from "@/hooks/use-theme-colors";
 import { BackButton } from "@/components/ui/BackButton";
+import { useWakeWord } from "@/src/context/WakeWordContext";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -94,6 +95,7 @@ export default function CameraAssistScreen() {
   // straight into an OCR capture on arrival instead of making the user tap.
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const tts = useMemo(() => getTTSService({ cooldownSeconds: 1.2 }), []);
+  const { pause: pauseWakeWord, resume: resumeWakeWord } = useWakeWord();
   const [perm, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const autoOcrFiredRef = useRef(false);
@@ -124,6 +126,22 @@ export default function CameraAssistScreen() {
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  useEffect(() => {
+    const pauseReason = "camera-push-to-talk";
+    if (isListening || isVoiceProcessing) {
+      pauseWakeWord(pauseReason);
+    } else {
+      resumeWakeWord(pauseReason);
+    }
+  }, [isListening, isVoiceProcessing, pauseWakeWord, resumeWakeWord]);
+
+  useEffect(
+    () => () => {
+      resumeWakeWord("camera-push-to-talk");
+    },
+    [resumeWakeWord],
+  );
 
   // ── WebSocket vision streaming ────────────────────────────────────────
   const wsRef = useRef<WebSocket | null>(null);

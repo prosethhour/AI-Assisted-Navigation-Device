@@ -5,7 +5,18 @@ export default ({ config }) => ({
   slug: config.slug || "my-app",
   version: config.version || "1.0.0",
   scheme: "walkbuddy",
-  plugins: ["expo-speech-recognition"],
+  plugins: [
+    ...(config.plugins || []),
+    [
+      "expo-speech-recognition",
+      {
+        microphonePermission:
+          "Allow WalkBuddy to listen for the Hey WalkBuddy phrase while the app is open.",
+        speechRecognitionPermission:
+          "Allow WalkBuddy to recognize the Hey WalkBuddy phrase and voice commands.",
+      },
+    ],
+  ],
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   userInterfaceStyle: "light",
